@@ -133,7 +133,7 @@ ui <- fluidPage(
            p("This plot shows the relationship between a Pixar movie's run time and its average critic rating."),
            p("Key Observations:"),
            tags$ul(
-             tags$li("Most movies have an average scoreo over 80"),
+             tags$li("Most movies have an average score over 80"),
              tags$li("Longer movies tend to have a slightly lower score")
            )
     )
