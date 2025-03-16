@@ -1,0 +1,177 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(ggrepel)
+library(shiny)
+
+
+pixar_films <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2025/2025-03-11/pixar_films.csv')
+public_response <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2025/2025-03-11/public_response.csv')
+
+full_pixar = full_join(pixar_films, public_response, by="film")
+
+full_pixar = full_pixar |>
+  mutate(avg_rating = rowMeans(across(c(rotten_tomatoes, metacritic, critics_choice)), na.rm = TRUE))
+
+full_pixar <- full_pixar %>%
+  mutate(labels = str_detect(film, "Toy Story|Incredibles|Cars|Up"))
+
+```
+
+
+```{r}
+
+reset_selection <- function(x, brush) {
+   brushedPoints(x, brush, allRows = TRUE)$selected_
+}
+
+
+plot1 <- function(data, selected_) {
+  ggplot(full_pixar, aes(x = release_date, y = avg_rating)) +
+      geom_point(col = "#9b19f5") +
+      geom_text_repel(data = selected_, 
+                      aes(label = film), 
+                      size = 3, 
+                      box.padding = 1,  
+                      point.padding = 0.5) +
+      labs(title = "Average Critic Rating v. Release Date",
+           x = "Release Date",
+           y = "Average Critic Rating") +
+      theme_minimal()
+}
+
+plot2 <- function(data, selected_) {
+  ggplot(data, aes(x = release_date, y = run_time)) +
+      geom_point(col = "#9b19f5") +
+      geom_text_repel(data = selected_, 
+                      aes(label = film), 
+                      size = 3, 
+                      box.padding = 1,  
+                      point.padding = 0.5) +
+      ylim(80, 125) +
+      labs(title = "Run Time v. Release Date",
+           x = "Release Date",
+           y = "Run Time") +
+      theme_minimal()
+}
+
+plot3 <- function(data, selected_) {
+  ggplot(data, aes(x = run_time, y = avg_rating)) +
+      geom_point(col = "#9b19f5") +   
+      geom_text_repel(data = selected_, 
+                      aes(label = film), 
+                      size = 3, 
+                      box.padding = 1,  
+                      point.padding = 0.5) +
+      labs(title = "Average Critic Rating v. Run Time",
+           x = "Run Time",
+           y = "Average Critic Rating") +
+      xlim(80, 125) +
+      theme_minimal()
+  }
+
+
+# UI
+ui <- fluidPage(
+  titlePanel("Pixar Movie Analysis"),
+  
+  # Add text below the title
+  fluidRow(
+    column(12,
+           h4("Overview"),
+           p("This Shiny app uses the Pixar movies dataset from the TidyTuesday promt Pixar Films."),
+           p("This app explores the relationship between the average critic rating from Rotten Tomatoes, Metacritic, and Critics' Choice, the runtime, and the release date."),
+           p("The following visualizations help identify trends in how Pixar movies have evolved over time.")
+    )
+  ),
+  
+  # First Row: Rating vs. Release Date
+  fluidRow(
+    column(8, plotOutput("rating_plot", brush = "plot_brush")), # Plot takes 8/12 width
+    column(4, 
+           h4("Insights"),
+           p("This plot shows the relationship between a Pixar movie's   release date and its critic rating."),
+           p("Key Observations:"),
+           tags$ul(
+             tags$li("Older movies have higher ratings"),
+             tags$li("Recent releases vary more in ratings")
+           )
+    )
+  ),
+
+  # Second Row: Run Time vs. Release Date
+  fluidRow(
+    column(8, plotOutput("runtime_plot", brush = "plot_brush")),
+    column(4, 
+           h4("Insights"),
+           p("This plot explores the runtime of Pixar movies over the years."),
+           p("Key Observations:"),
+           tags$ul(
+             tags$li("Most runtimes are between 80-120 minutes"),
+             tags$li("Newer movies tend to be slightly longer")
+           )
+    )
+  ),
+
+  # Third Row: Bar Chart (Runtimes by Release Year)
+  fluidRow(
+    column(8, plotOutput("rating_runtime_plot", brush = "plot_brush")),
+    column(4, 
+           h4("Insights"),
+           p("This plot shows the relationship between a Pixar movie's run time and its average critic rating."),
+           p("Key Observations:"),
+           tags$ul(
+             tags$li("Most movies have an average scoreo over 80"),
+             tags$li("Longer movies tend to have a slightly lower score")
+           )
+    )
+  )
+)
+
+
+# Define server logic for rendering plots
+server <- function(input, output) {
+  
+  selected <- reactiveVal(full_pixar)  # Store the filtered dataset, not a logical vector
+  
+  observeEvent(input$plot_brush, {
+    brushed <- brushedPoints(full_pixar, input$plot_brush, allRows = FALSE)  # Keep only brushed rows
+    if (nrow(brushed) == 0) {
+      selected(full_pixar)  # If nothing is brushed, reset to full dataset
+    } else {
+      selected(brushed)  # Update with brushed data
+    }
+  })
+
+  # Render the first plot: Average Critic Rating v. Release Date
+  output$rating_plot <- renderPlot({plot1(full_pixar, selected())})
+  
+  # Render the second plot: Run Time v. Release Date
+  output$runtime_plot <- renderPlot({plot2(full_pixar, selected())})
+  
+  # Render the third plot: Average Critic Rating v. Run Time
+  output$rating_runtime_plot <- renderPlot({plot3(full_pixar, selected())})
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
